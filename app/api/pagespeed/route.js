@@ -34,7 +34,8 @@ export async function POST(request) {
 
     async function callPsi(key) {
       const encUrl = encodeURIComponent(targetUrl);
-      const apiUrl = `https://www.googleapis.com/pagespeedonline/v5/runPagespeed?url=${encUrl}&strategy=mobile&category=performance&key=${key}`;
+      const keyParam = key ? `&key=${key}` : '';
+      const apiUrl = `https://www.googleapis.com/pagespeedonline/v5/runPagespeed?url=${encUrl}&strategy=mobile&category=performance&category=best-practices&category=accessibility&category=seo${keyParam}`;
       const r = await fetch(apiUrl, { headers: { 'User-Agent': 'PageAuditChecklist/2.0' } });
       if (!r.ok) throw new Error(`HTTP ${r.status}`);
       return await r.json();
@@ -61,13 +62,8 @@ export async function POST(request) {
     // Keyless attempt
     if (!rawPsi) {
       try {
-        const encUrl = encodeURIComponent(targetUrl);
-        const apiUrl = `https://www.googleapis.com/pagespeedonline/v5/runPagespeed?url=${encUrl}&strategy=mobile&category=performance`;
-        const r2 = await fetch(apiUrl, { headers: { 'User-Agent': 'PageAuditChecklist/2.0' } });
-        if (r2.ok) {
-          rawPsi = await r2.json();
-          keyUsed = 'keyless';
-        }
+        rawPsi = await callPsi(null);
+        keyUsed = 'keyless';
       } catch (e) {}
     }
 
@@ -99,6 +95,34 @@ export async function POST(request) {
         }
       }
 
+      // Extract real browser telemetry from Lighthouse
+      const consoleAudit = audits['errors-in-console'];
+      const consoleErrors = [];
+      if (consoleAudit && consoleAudit.details?.items) {
+        consoleAudit.details.items.forEach(it => {
+          const msg = it.description || it.source || it.url || '';
+          if (msg) consoleErrors.push(msg);
+        });
+      }
+      const consoleErrorsCount = consoleAudit
+        ? (consoleAudit.score === 1 ? 0 : (consoleErrors.length || 1))
+        : null;
+
+      const viewportAudit = audits['viewport'];
+      const viewportPassed = viewportAudit ? viewportAudit.score === 1 : null;
+
+      const contentWidthAudit = audits['content-width'];
+      const contentWidthPassed = contentWidthAudit ? contentWidthAudit.score === 1 : null;
+
+      const tapTargetsAudit = audits['tap-targets'];
+      const tapTargetsPassed = tapTargetsAudit ? tapTargetsAudit.score === 1 : null;
+
+      const fontSizeAudit = audits['font-size'];
+      const fontSizePassed = fontSizeAudit ? fontSizeAudit.score === 1 : null;
+
+      const crawlableAnchorsAudit = audits['crawlable-anchors'];
+      const crawlableAnchorsPassed = crawlableAnchorsAudit ? crawlableAnchorsAudit.score === 1 : null;
+
       return NextResponse.json({
         ok: true,
         keyUsed: keyUsed,
@@ -110,7 +134,14 @@ export async function POST(request) {
           tbt: tbt,
           cls: cls,
           speedIndex: si,
-          opportunities: opportunities
+          opportunities: opportunities,
+          consoleErrorsCount: consoleErrorsCount,
+          consoleErrors: consoleErrors,
+          viewportPassed: viewportPassed,
+          contentWidthPassed: contentWidthPassed,
+          tapTargetsPassed: tapTargetsPassed,
+          fontSizePassed: fontSizePassed,
+          crawlableAnchorsPassed: crawlableAnchorsPassed
         }
       }, { headers: corsHeaders });
     }

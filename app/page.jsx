@@ -4,16 +4,6 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { AUDIT_DATA, ALL_CHECKLIST_ITEMS } from '../lib/auditData';
 import { evaluateChecklistInCode, enforceMergeAndEvidenceRules } from '../lib/evaluator';
 
-const RN_API_KEY = 'rnk_live_ffdcc789ff5c17f02123f00e4ae5916e2db305648be95447';
-const RN_BASE = 'https://www.ranknibbler.com';
-const GROQ_API_KEY = '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';
-const CITEVANA_API_KEY = 'cv_live_AuUfx52u9IUYjyQysEvuBin7ArAA0_-mMhYAg-65MPc';
-
-const PSI_API_KEYS = [
-  'AIzaSyAL-HWaqHT5oqwzUoznXTM3Yps59Gk0TxQ',
-  'AIzaSyC7DWxwuaj2w91A52sCIW7F1ri6YXJQ-b4'
-];
-
 function isPrivateOrLocalUrl(urlStr) {
   try {
     const parsed = new URL(urlStr);
@@ -269,72 +259,20 @@ export default function PageAuditApp() {
     }
   }
 
-  async function fetchPageSpeedDirect(pageUrl, signal) {
-    const encUrl = encodeURIComponent(pageUrl);
-    let keyUsed = null;
-    let rawPsi = null;
-
-    for (let i = 0; i < PSI_API_KEYS.length; i++) {
-      const k = PSI_API_KEYS[i];
-      try {
-        const url = `https://www.googleapis.com/pagespeedonline/v5/runPagespeed?url=${encUrl}&strategy=mobile&category=performance&key=${k}`;
-        const r = await fetch(url, { signal });
-        if (r.ok) {
-          rawPsi = await r.json();
-          keyUsed = i === 0 ? 'primary' : 'fallback';
-          break;
-        }
-      } catch (e) {}
+  // ── API Fetchers (Strict Server-Side Proxying & Security) ────────────────
+  async function fetchPageCheck(pageUrl, signal) {
+    try {
+      const r = await fetch('/api/page-check', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: pageUrl }),
+        signal
+      });
+      if (!r.ok) return { ok: false, error: `Page Check returned HTTP ${r.status}` };
+      return await r.json();
+    } catch (e) {
+      return { ok: false, error: e.message };
     }
-
-    if (!rawPsi) {
-      try {
-        const urlNoKey = `https://www.googleapis.com/pagespeedonline/v5/runPagespeed?url=${encUrl}&strategy=mobile&category=performance`;
-        const r2 = await fetch(urlNoKey, { signal });
-        if (r2.ok) {
-          rawPsi = await r2.json();
-          keyUsed = 'keyless';
-        }
-      } catch (e) {}
-    }
-
-    if (rawPsi && rawPsi.lighthouseResult) {
-      const lh = rawPsi.lighthouseResult || {};
-      const perf = lh.categories?.performance || {};
-      const audits = lh.audits || {};
-
-      const score = perf.score !== null && perf.score !== undefined ? Math.round(perf.score * 100) : null;
-      const fcp = audits['first-contentful-paint']?.displayValue || '—';
-      const lcp = audits['largest-contentful-paint']?.displayValue || '—';
-      const tbt = audits['total-blocking-time']?.displayValue || '—';
-      const cls = audits['cumulative-layout-shift']?.displayValue || '—';
-      const si = audits['speed-index']?.displayValue || '—';
-
-      const opportunities = [];
-      for (const aKey in audits) {
-        const a = audits[aKey];
-        if (a?.details?.type === 'opportunity') {
-          const savings = a.details.overallSavingsMs || 0;
-          const byteSavings = a.details.overallSavingsBytes || 0;
-          if (savings > 100 || byteSavings > 40000) {
-            opportunities.push({
-              title: a.title,
-              displayValue: a.displayValue || '',
-              savingsMs: savings,
-              savingsBytes: byteSavings
-            });
-          }
-        }
-      }
-
-      return {
-        ok: true,
-        keyUsed,
-        data: { score, fcp, lcp, tbt, cls, speedIndex: si, opportunities }
-      };
-    }
-
-    return { ok: false, error: 'PageSpeed unavailable' };
   }
 
   async function fetchPageSpeed(pageUrl, signal) {
@@ -345,86 +283,58 @@ export default function PageAuditApp() {
         body: JSON.stringify({ url: pageUrl }),
         signal
       });
-      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      if (!r.ok) return { ok: false, error: `PageSpeed returned HTTP ${r.status}` };
       const res = await r.json();
-      if (res && res.ok) return res;
-      throw new Error(res?.error || 'Proxy error');
+      if (res && res.ok && res.data) {
+        setPageSpeedData(res.data);
+      }
+      return res;
     } catch (e) {
-      return fetchPageSpeedDirect(pageUrl, signal);
+      return { ok: false, error: e.message || String(e) };
     }
   }
 
   async function fetchRankNibblerAll(pageUrl, signal) {
-    const encUrl = encodeURIComponent(pageUrl);
-    const headers = { 'X-API-Key': RN_API_KEY };
-    const pAudit = fetch(`${RN_BASE}/api/v1/audit?url=${encUrl}`, { headers, signal }).then(r => r.ok ? r.json() : null).catch(() => null);
-    const pA11y = fetch(`${RN_BASE}/api/v1/accessibility?url=${encUrl}`, { headers, signal }).then(r => r.ok ? r.json() : {}).catch(() => ({}));
-    const pRes = fetch(`${RN_BASE}/api/v1/resources?url=${encUrl}`, { headers, signal }).then(r => r.ok ? r.json() : {}).catch(() => ({}));
-    const pLinks = fetch(`${RN_BASE}/api/v1/links?url=${encUrl}`, { headers, signal }).then(r => r.ok ? r.json() : {}).catch(() => ({}));
-    const pRaw = fetch(`${RN_BASE}/api/v1/raw-html?url=${encUrl}`, { headers, signal }).then(r => r.ok ? r.json() : {}).catch(() => ({}));
-
     try {
-      const res = await Promise.all([pAudit, pA11y, pRes, pLinks, pRaw]);
-      const auditData = res[0];
-      if (!auditData || auditData.error) {
-        return { ok: false, error: auditData?.error || 'RankNibbler unavailable' };
-      }
-      return {
-        ok: true,
-        audit: auditData,
-        a11y: res[1] || {},
-        res: res[2] || {},
-        links: res[3] || {},
-        raw: res[4] || {}
-      };
+      const r = await fetch('/api/ranknibbler', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: pageUrl }),
+        signal
+      });
+      if (!r.ok) return { ok: false, error: `RankNibbler returned HTTP ${r.status}` };
+      return await r.json();
     } catch (e) {
       return { ok: false, error: e.message || String(e) };
     }
   }
 
   async function fetchCitevanaData(pageUrl, signal) {
-    const enc = encodeURIComponent(pageUrl);
-    const pAudit = fetch('/api/citevana/page-audit', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ url: pageUrl }),
-      signal
-    }).then(r => r.ok ? r.json() : null).catch(() => null);
-
-    const pCrawlers = fetch('/api/citevana/ai-crawlers', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ url: pageUrl }),
-      signal
-    }).then(r => r.ok ? r.json() : {}).catch(() => ({}));
-
-    const res = await Promise.all([pAudit, pCrawlers]);
-    return res;
+    try {
+      const r = await fetch('/api/citevana?path=page-audit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: pageUrl }),
+        signal
+      });
+      if (!r.ok) return { ok: false, error: `Citevana returned HTTP ${r.status}` };
+      const data = await r.json();
+      return { ok: true, audit: data, result: data.result || data };
+    } catch (e) {
+      return { ok: false, error: e.message || String(e) };
+    }
   }
 
   async function callGroqMerge(payload, signal) {
     const bodyStr = JSON.stringify(payload);
-    try {
-      const res = await fetch('/api/groq', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: bodyStr,
-        signal
-      });
-      if (res.ok) return await res.json();
-    } catch (e) {}
-
-    const directRes = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+    const res = await fetch('/api/groq', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${GROQ_API_KEY}`
-      },
+      headers: { 'Content-Type': 'application/json' },
       body: bodyStr,
       signal
     });
-    if (!directRes.ok) throw new Error(`Groq direct API returned HTTP ${directRes.status}`);
-    return await directRes.json();
+    if (!res.ok) throw new Error(`Groq endpoint returned HTTP ${res.status}`);
+    return await res.json();
   }
 
   // ── Main Audit Execution ────────────────────────────────────────────────
@@ -497,12 +407,7 @@ export default function PageAuditApp() {
         ? fetchRankNibblerAll(cleanUrl, rnController.signal)
         : Promise.resolve({ ok: false, skipped: true });
       const pCitevana = (selectedEngine === 'full' || selectedEngine === 'citevana')
-        ? fetchCitevanaData(cleanUrl, cvController.signal).then(res => {
-            const auditData = res[0] || {};
-            const crawlerData = res[1] || {};
-            if (!auditData || auditData.error) return { ok: false, error: auditData?.error || 'Unavailable' };
-            return { ok: true, audit: auditData, crawlers: crawlerData };
-          }).catch(e => ({ ok: false, error: e.message }))
+        ? fetchCitevanaData(cleanUrl, cvController.signal)
         : Promise.resolve({ ok: false, skipped: true });
 
       const settled = await Promise.allSettled([pPageCheck, pPageSpeed, pRankNibbler, pCitevana]);
@@ -526,10 +431,7 @@ export default function PageAuditApp() {
       if ((!rnRes || !rnRes.ok) && selectedEngine === 'ranknibbler' && (!cvRes || !cvRes.ok)) {
         try {
           setLoaderSub('RankNibbler unavailable — Failing over to Citevana…');
-          const cvData = await fetchCitevanaData(cleanUrl);
-          if (cvData && cvData[0] && !cvData[0].error) {
-            cvRes = { ok: true, audit: cvData[0], crawlers: cvData[1] || {} };
-          }
+          cvRes = await fetchCitevanaData(cleanUrl);
         } catch (e) {}
       }
 
@@ -595,13 +497,33 @@ export default function PageAuditApp() {
           sourcesAvailable: currentSources,
           checklistItems: ALL_CHECKLIST_ITEMS.map(i => ({ id: i.id, title: i.title, rule: i.rule })),
           pageCheckSummary: pcRes?.ok ? {
-            viewports: ['375px', '768px', '1024px', '1280px', '1440px'],
-            hits: pcRes.hits || [],
-            headings: pcRes.headings || []
+            meta: pcRes.meta || {},
+            headingsCount: pcRes.headings?.length || 0,
+            h1s: pcRes.h1s || [],
+            emptyHeadings: pcRes.emptyHeadings || [],
+            skippedHierarchies: pcRes.skippedHierarchies || [],
+            images: pcRes.images || {},
+            links: pcRes.links || {},
+            buttons: pcRes.buttons || {},
+            typography: pcRes.typography || {},
+            hits: pcRes.hits || []
           } : 'Page Check offline',
-          pageSpeedSummary: psiRes?.ok && psiRes.data ? psiRes.data : 'PageSpeed offline',
-          rankNibblerSummary: rnRes?.ok ? rnRes.audit?.checks : 'RankNibbler offline',
-          citevanaSummary: cvRes?.ok ? cvRes.audit?.result : 'Citevana offline'
+          pageSpeedSummary: psiRes?.ok && psiRes.data ? {
+            score: psiRes.data.score,
+            lcp: psiRes.data.lcp,
+            cls: psiRes.data.cls,
+            tbt: psiRes.data.tbt,
+            speedIndex: psiRes.data.speedIndex,
+            consoleErrorsCount: psiRes.data.consoleErrorsCount,
+            consoleErrors: psiRes.data.consoleErrors || [],
+            viewportPassed: psiRes.data.viewportPassed,
+            contentWidthPassed: psiRes.data.contentWidthPassed,
+            tapTargetsPassed: psiRes.data.tapTargetsPassed,
+            fontSizePassed: psiRes.data.fontSizePassed,
+            opportunities: (psiRes.data.opportunities || []).map(o => o.title)
+          } : 'PageSpeed offline',
+          rankNibblerSummary: rnRes?.ok ? (rnRes.audit?.checks || rnRes.checks) : 'RankNibbler offline',
+          citevanaSummary: cvRes?.ok ? (cvRes.audit?.result || cvRes.result) : 'Citevana offline'
         };
 
         const groqPayload = {
@@ -611,7 +533,7 @@ export default function PageAuditApp() {
           messages: [
             {
               role: 'system',
-              content: 'You are an expert QA auditor. Evaluate the 23 checklist items by merging the provided multi-source data. Return a JSON object with a single key "evaluations" where keys are EXACTLY the 23 item IDs, and values are {"s": "p"|"f"|"nv", "note": string, "source": string}.\n\nMANDATORY NOT VERIFIED RULE:\n- Pass ("p"): Check completed successfully and evidence confirms requirement is satisfied.\n- Fail ("f"): Check completed successfully and actual evidence confirms an issue.\n- Not Verified ("nv"): Check could not be completed, an API timed out or is unavailable, data is missing, or evidence is inconclusive.\nNEVER mark an item as Fail without concrete evidence of an actual issue. If you cannot verify it, mark it Not Verified ("nv").'
+              content: 'You are an expert QA technical auditor. Evaluate the 23 checklist items by interpreting the real multi-source telemetry provided. Return a JSON object {"evaluations": { [itemId]: { "s": "p"|"f"|"nv", "note": string, "source": string } }}.\n\nSTRICT COMPLIANCE RULES:\n1. Do NOT hallucinate or invent missing data, errors, or elements. Base every evaluation strictly on the collected telemetry.\n2. PASS ("p"): Mark ONLY when collected evidence confirms the requirement is satisfied.\n3. FAIL ("f"): Mark ONLY when verified evidence confirms an actual issue or non-compliance. Include specific count or element details in the note.\n4. NOT VERIFIED ("nv"): If a check cannot be completed, if an API timed out or is unavailable, or if telemetry is missing, select "nv". Never mark "f" without concrete evidence of an actual issue.\n5. In notes for "nv", state what was missing or why verification was incomplete.'
             },
             {
               role: 'user',
@@ -630,9 +552,23 @@ export default function PageAuditApp() {
           if (typeof aiEvals === 'object') {
             for (const itKey in baselineEvaluations) {
               if (aiEvals[itKey] && (aiEvals[itKey].s === 'p' || aiEvals[itKey].s === 'f' || aiEvals[itKey].s === 'nv')) {
-                // If measured Page Check found a defect, keep the defect
+                // 1. If measured Page Check found a defect, keep the defect
                 if (baselineEvaluations[itKey].s === 'f' && baselineEvaluations[itKey].source === 'Page Check' && aiEvals[itKey].s !== 'f') {
                   continue;
+                }
+                // 2. Prevent AI hallucinations from marking unmeasured visual checks as Pass
+                if (baselineEvaluations[itKey].s === 'nv' && aiEvals[itKey].s === 'p') {
+                  const unmeasuredVisuals = [
+                    'type-heading-size',
+                    'type-button-size',
+                    'color-brand-palette',
+                    'link-button-styles',
+                    'resp-desktop-small',
+                    'resp-tablet-responsive'
+                  ];
+                  if (unmeasuredVisuals.includes(itKey)) {
+                    continue;
+                  }
                 }
                 finalEvaluations[itKey] = {
                   s: aiEvals[itKey].s,
