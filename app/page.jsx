@@ -43,10 +43,10 @@ function scoreColor(score) {
 export default function PageAuditApp() {
   // ── Form State ──────────────────────────────────────────────────────────
   const [workflowStep, setWorkflowStep] = useState(1);
-  const [projectName, setProjectName] = useState('Demo Project');
-  const [auditorName, setAuditorName] = useState('QA Lead');
-  const [reportTitle, setReportTitle] = useState('Single Page Quality & SEO Audit Report');
-  const [targetUrl, setTargetUrl] = useState('https://spoutsuckers.com.au/');
+  const [projectName, setProjectName] = useState('');
+  const [auditorName, setAuditorName] = useState('');
+  const [reportTitle, setReportTitle] = useState('');
+  const [targetUrl, setTargetUrl] = useState('');
   const [selectedEngine, setSelectedEngine] = useState('full');
   const [theme, setTheme] = useState('light');
 
