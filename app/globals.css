@@ -3836,7 +3836,9 @@
       line-height: 1.45;
     }
 
-    #step1Form {
+    #step1Form,
+    .step1-form,
+    .step1-form-card form {
       display: flex;
       flex-direction: column;
       gap: 20px;

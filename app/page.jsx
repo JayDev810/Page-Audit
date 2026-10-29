@@ -916,7 +916,7 @@ export default function PageAuditApp() {
                 </div>
               </div>
 
-              <form onSubmit={(e) => { e.preventDefault(); handleRunAudit(); }}>
+              <form id="step1Form" className="step1-form" onSubmit={(e) => { e.preventDefault(); handleRunAudit(); }}>
                 <div className="step1-fields-row">
                   <div className="field">
                     <label htmlFor="stepProjectName">Project Name <span className="required-star">*</span></label>
