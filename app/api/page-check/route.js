@@ -1,25 +1,30 @@
-module.exports = async (req, res) => {
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-API-Key');
+import { NextResponse } from 'next/server';
 
-  if (req.method === 'OPTIONS') {
-    return res.status(204).end();
-  }
+export async function OPTIONS() {
+  return new NextResponse(null, {
+    status: 204,
+    headers: {
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-API-Key'
+    }
+  });
+}
 
-  let body = {};
-  if (typeof req.body === 'string') {
-    try { body = JSON.parse(req.body); } catch (e) { body = {}; }
-  } else if (req.body && typeof req.body === 'object') {
-    body = req.body;
-  }
-
-  const targetUrl = body.url;
-  if (!targetUrl) {
-    return res.status(400).json({ ok: false, error: 'Missing target URL', hits: [] });
-  }
+export async function POST(request) {
+  const corsHeaders = {
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-API-Key'
+  };
 
   try {
+    const body = await request.json();
+    const targetUrl = body.url;
+    if (!targetUrl) {
+      return NextResponse.json({ ok: false, error: 'Missing target URL', hits: [] }, { status: 400, headers: corsHeaders });
+    }
+
     const resp = await fetch(targetUrl, {
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
@@ -28,22 +33,22 @@ module.exports = async (req, res) => {
     });
 
     if (!resp.ok) {
-      return res.status(200).json({
+      return NextResponse.json({
         ok: false,
         error: `Target server returned HTTP ${resp.status}`,
         hits: []
-      });
+      }, { headers: corsHeaders });
     }
 
     const html = await resp.text();
 
     // Check if Cloudflare bot challenge or captcha
     if (resp.status === 403 || html.includes('cf-browser-verification') || html.includes('challenge-platform')) {
-      return res.status(200).json({
+      return NextResponse.json({
         ok: false,
         error: 'Target protected by bot challenge; relying on distributed crawler data',
         hits: []
-      });
+      }, { headers: corsHeaders });
     }
 
     // Extract Title
@@ -99,9 +104,9 @@ module.exports = async (req, res) => {
       hits.push({ check: 'Image Alt Text', evidence_text: `${missingAlt.length} images missing descriptive alt attribute` });
     }
 
-    return res.status(200).json({
+    return NextResponse.json({
       ok: true,
-      mode: 'vercel-parser',
+      mode: 'nextjs-parser',
       url: targetUrl,
       meta: { title, metaDesc, canonical },
       headings,
@@ -115,12 +120,13 @@ module.exports = async (req, res) => {
         '1280': { hasOverflow: false },
         '1440': { hasOverflow: false }
       }
-    });
+    }, { headers: corsHeaders });
   } catch (err) {
-    return res.status(200).json({
+    return NextResponse.json({
       ok: false,
       error: err.message,
       hits: []
-    });
+    }, { headers: corsHeaders });
   }
-};
+}
+
