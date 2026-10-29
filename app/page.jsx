@@ -533,7 +533,7 @@ export default function PageAuditApp() {
           messages: [
             {
               role: 'system',
-              content: 'You are an expert QA technical auditor. Evaluate the 23 checklist items by interpreting the real multi-source telemetry provided. Return a JSON object {"evaluations": { [itemId]: { "s": "p"|"f"|"nv", "note": string, "source": string } }}.\n\nSTRICT COMPLIANCE RULES:\n1. Do NOT hallucinate or invent missing data, errors, or elements. Base every evaluation strictly on the collected telemetry.\n2. PASS ("p"): Mark ONLY when collected evidence confirms the requirement is satisfied.\n3. FAIL ("f"): Mark ONLY when verified evidence confirms an actual issue or non-compliance. Include specific count or element details in the note.\n4. NOT VERIFIED ("nv"): If a check cannot be completed, if an API timed out or is unavailable, or if telemetry is missing, select "nv". Never mark "f" without concrete evidence of an actual issue.\n5. In notes for "nv", state what was missing or why verification was incomplete.'
+              content: 'You are an expert QA technical auditor. Evaluate the 23 checklist items by interpreting the real multi-source telemetry provided. Return a JSON object {"evaluations": { [itemId]: { "s": "p"|"f"|"nv", "note": string, "source": string } }}.\n\nSTRICT COMPLIANCE RULES:\n1. Do NOT hallucinate or invent missing data, errors, or elements. Base every evaluation strictly on the collected telemetry.\n2. PASS ("p"): Mark ONLY when collected evidence confirms the requirement is satisfied.\n3. FAIL ("f"): Mark ONLY when verified evidence confirms an actual issue or non-compliance. Include specific count or element details in the note.\n4. NOT VERIFIED ("nv"): If a check cannot be completed, if an API timed out or is unavailable, or if telemetry is missing, select "nv". Never mark "f" without concrete evidence of an actual issue.\n5. In notes for "nv", state what was missing or why verification was incomplete.\n6. Set "source" to a clean label such as "Page Check", "RankNibbler", "Citevana", "PageSpeed", or "Page Check + RankNibbler". Do NOT output raw telemetry property keys.'
             },
             {
               role: 'user',
@@ -650,6 +650,38 @@ export default function PageAuditApp() {
       .replace(/'/g, '&#39;');
   }
 
+  // ── Clean & Format Evidence Source Tag ────────────────────────────────────
+  function formatEvidenceSource(src) {
+    if (!src) return '';
+    const s = String(src).trim();
+    const cleanStandard = {
+      'Page Check': 'Page Check',
+      'RankNibbler': 'RankNibbler',
+      'Citevana': 'Citevana',
+      'PageSpeed': 'PageSpeed',
+      'Not Verified': 'Not Verified',
+      'Deterministic Check': 'Page Check'
+    };
+    if (cleanStandard[s]) return cleanStandard[s];
+
+    const upper = s.toUpperCase();
+    const detected = [];
+    if (upper.includes('PAGECHECK') || upper.includes('PAGE CHECK')) detected.push('Page Check');
+    if (upper.includes('RANKNIBBLER') || upper.includes('RANK NIBBLER')) detected.push('RankNibbler');
+    if (upper.includes('CITEVANA')) detected.push('Citevana');
+    if (upper.includes('PAGESPEED') || upper.includes('LIGHTHOUSE')) detected.push('PageSpeed');
+
+    if (detected.length > 0) {
+      return detected.join(' + ');
+    }
+
+    if (s.length <= 25 && !s.includes('.') && !s.includes('_')) {
+      return s;
+    }
+
+    return 'Multi-Engine';
+  }
+
   // ── PDF Export ──────────────────────────────────────────────────────────
   const handleExportPdf = () => {
     setIsGeneratingPdf(true);
@@ -689,7 +721,8 @@ export default function PageAuditApp() {
 
         let evHtml = '';
         if (ev.note) {
-          const srcPrefix = ev.source ? `<span style="font-weight:700; color:#334155; text-transform:uppercase; font-size:10.5px; margin-right:4px;">[${escapeHtml(ev.source)}]</span> ` : '';
+          const displaySrc = formatEvidenceSource(ev.source);
+          const srcPrefix = displaySrc ? `<span style="font-weight:700; color:#334155; text-transform:uppercase; font-size:10px; margin-right:5px; background:rgba(15,23,42,0.08); padding:1px 5px; border-radius:3px;">[${escapeHtml(displaySrc)}]</span> ` : '';
           const evBoxClass = ev.s === 'p' ? 'pass' : (ev.s === 'f' ? 'fail' : 'nv');
           evHtml = `<div class="pdf-item-evidence ${evBoxClass}"><strong>Evidence:</strong> ${srcPrefix}${escapeHtml(ev.note)}</div>`;
         }
@@ -1626,10 +1659,12 @@ export default function PageAuditApp() {
                             {ev.note && (
                               <div className={`check-evidence-box visible ${isPass ? 'evidence-pass' : isFail ? 'evidence-fail' : 'evidence-nv'}`}>
                                 <span className="evidence-icon">{isPass ? '✓' : isFail ? '✕' : '⚠'}</span>
-                                {ev.source && (
-                                  <span className="evidence-source-tag">{ev.source}</span>
-                                )}
-                                <span className="evidence-text">{ev.note}</span>
+                                <div className="evidence-body">
+                                  {ev.source && (
+                                    <span className="evidence-source-tag">{formatEvidenceSource(ev.source)}</span>
+                                  )}
+                                  <span className="evidence-text">{ev.note}</span>
+                                </div>
                               </div>
                             )}
 
