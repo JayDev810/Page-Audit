@@ -88,6 +88,11 @@ export default function PageAuditApp() {
   const [loaderElapsed, setLoaderElapsed] = useState('00:00.0');
   const [terminalText, setTerminalText] = useState('Initializing telemetry connection…');
   const [markerState, setMarkerState] = useState('ALT VERIFY');
+  const [openNotes, setOpenNotes] = useState({});
+
+  const toggleNote = (id) => {
+    setOpenNotes(prev => ({ ...prev, [id]: !prev[id] }));
+  };
 
   // ── Safeguards & Error State ────────────────────────────────────────────
   const [errorMessage, setErrorMessage] = useState(null);
@@ -127,24 +132,36 @@ export default function PageAuditApp() {
   const stats = useMemo(() => {
     let passed = 0;
     let failed = 0;
+    let notVerified = 0;
     let pending = 0;
     ALL_CHECKLIST_ITEMS.forEach(it => {
       const ev = evaluations[it.id];
       if (!ev || ev.s === 'u') pending++;
       else if (ev.s === 'p') passed++;
       else if (ev.s === 'f') failed++;
+      else if (ev.s === 'nv') notVerified++;
     });
     const total = ALL_CHECKLIST_ITEMS.length;
-    const pct = Math.round((passed / total) * 100);
-    return { total, passed, failed, pending, pct };
+    const evaluated = passed + failed + notVerified;
+    const pct = Math.round((evaluated / total) * 100);
+    return { total, passed, failed, notVerified, pending, pct };
   }, [evaluations]);
 
-  // Category counts
-  const categoryFailCounts = useMemo(() => {
+  // Category counts (Passed, Failed, Not Verified, Pending)
+  const categoryCounts = useMemo(() => {
     return AUDIT_DATA.map(cat => {
-      return cat.items.reduce((acc, it) => {
-        return acc + (evaluations[it.id]?.s === 'f' ? 1 : 0);
-      }, 0);
+      let failed = 0;
+      let notVerified = 0;
+      let passed = 0;
+      let pending = 0;
+      cat.items.forEach(it => {
+        const s = evaluations[it.id]?.s;
+        if (s === 'f') failed++;
+        else if (s === 'nv') notVerified++;
+        else if (s === 'p') passed++;
+        else pending++;
+      });
+      return { failed, notVerified, passed, pending, total: cat.items.length };
     });
   }, [evaluations]);
 
@@ -162,6 +179,13 @@ export default function PageAuditApp() {
         cls: 'verdict-pass',
         badge: 'ALL PASSED • 23/23',
         sub: 'All technical standards verified and ready for client sign-off.'
+      };
+    }
+    if (stats.notVerified > 0 && stats.failed === 0) {
+      return {
+        cls: 'verdict-warn',
+        badge: `NOT VERIFIED • ${stats.notVerified} ${stats.notVerified === 1 ? 'CHECK' : 'CHECKS'}`,
+        sub: `${stats.notVerified} checks could not be fully verified due to missing telemetry or endpoint limits.`
       };
     }
     return {
@@ -587,7 +611,7 @@ export default function PageAuditApp() {
           messages: [
             {
               role: 'system',
-              content: 'You are an expert QA auditor. Evaluate the 23 checklist items by merging the provided multi-source data. Return a JSON object with a single key "evaluations" where keys are EXACTLY the 23 item IDs, and values are {"s": "p"|"f", "note": string, "source": string}. Never mark an item as passed unless evidence supports it.'
+              content: 'You are an expert QA auditor. Evaluate the 23 checklist items by merging the provided multi-source data. Return a JSON object with a single key "evaluations" where keys are EXACTLY the 23 item IDs, and values are {"s": "p"|"f"|"nv", "note": string, "source": string}.\n\nMANDATORY NOT VERIFIED RULE:\n- Pass ("p"): Check completed successfully and evidence confirms requirement is satisfied.\n- Fail ("f"): Check completed successfully and actual evidence confirms an issue.\n- Not Verified ("nv"): Check could not be completed, an API timed out or is unavailable, data is missing, or evidence is inconclusive.\nNEVER mark an item as Fail without concrete evidence of an actual issue. If you cannot verify it, mark it Not Verified ("nv").'
             },
             {
               role: 'user',
@@ -605,9 +629,9 @@ export default function PageAuditApp() {
           const aiEvals = parsed.evaluations || parsed;
           if (typeof aiEvals === 'object') {
             for (const itKey in baselineEvaluations) {
-              if (aiEvals[itKey] && (aiEvals[itKey].s === 'p' || aiEvals[itKey].s === 'f')) {
+              if (aiEvals[itKey] && (aiEvals[itKey].s === 'p' || aiEvals[itKey].s === 'f' || aiEvals[itKey].s === 'nv')) {
                 // If measured Page Check found a defect, keep the defect
-                if (baselineEvaluations[itKey].s === 'f' && baselineEvaluations[itKey].source === 'Page Check' && aiEvals[itKey].s === 'p') {
+                if (baselineEvaluations[itKey].s === 'f' && baselineEvaluations[itKey].source === 'Page Check' && aiEvals[itKey].s !== 'f') {
                   continue;
                 }
                 finalEvaluations[itKey] = {
@@ -627,18 +651,24 @@ export default function PageAuditApp() {
       // Enforce merge & evidence rules
       const enforced = enforceMergeAndEvidenceRules(finalEvaluations, pcRes, psiRes, rnRes, cvRes);
 
-      // Assemble issues list
+      // Assemble issues list and unverified list
       const issuesList = [];
+      const unverifiedList = [];
       if (enforced.highDefects?.length > 0) {
         enforced.highDefects.forEach(hd => issuesList.push(`[HIGH PRIORITY] ${hd}`));
       }
       for (const cId in enforced.evaluations) {
-        if (enforced.evaluations[cId].s === 'f') {
-          const cleanNote = enforced.evaluations[cId].note;
-          const src = enforced.evaluations[cId].source || 'Issue';
+        const itEval = enforced.evaluations[cId];
+        if (itEval.s === 'f') {
+          const cleanNote = itEval.note;
+          const src = itEval.source || 'Issue';
           if (!issuesList.some(i => i.includes(cleanNote.substring(0, 30)))) {
             issuesList.push(`[${src}] ${cleanNote}`);
           }
+        } else if (itEval.s === 'nv') {
+          const cleanNote = itEval.note;
+          const src = itEval.source || 'Unverified';
+          unverifiedList.push(`[${src}] ${cleanNote}`);
         }
       }
 
@@ -647,7 +677,9 @@ export default function PageAuditApp() {
         grade: enforced.grade,
         passedCount: enforced.passedCount,
         failedCount: enforced.failedCount,
+        notVerifiedCount: enforced.notVerifiedCount,
         issues: issuesList,
+        unverified: unverifiedList,
         provider: selectedEngine === 'full' ? 'Multi-Engine Merged' : (selectedEngine === 'citevana' ? 'Citevana AI Engine (Quick Check)' : 'RankNibbler Core (Quick Check)')
       });
 
@@ -696,20 +728,23 @@ export default function PageAuditApp() {
     AUDIT_DATA.forEach((group, gi) => {
       let groupPass = 0;
       let groupFail = 0;
+      let groupNotVerified = 0;
       let itemsHtml = '';
 
       group.items.forEach((it, iIdx) => {
         const ev = evaluations[it.id] || { s: 'u', note: '', source: '', exception: '' };
         if (ev.s === 'p') groupPass++;
-        if (ev.s === 'f') groupFail++;
+        else if (ev.s === 'f') groupFail++;
+        else if (ev.s === 'nv') groupNotVerified++;
 
-        const stClass = ev.s === 'p' ? 'p' : (ev.s === 'f' ? 'f' : 'u');
-        const stText = ev.s === 'p' ? 'PASS' : (ev.s === 'f' ? 'FAIL' : 'PENDING');
+        const stClass = ev.s === 'p' ? 'p' : (ev.s === 'f' ? 'f' : (ev.s === 'nv' ? 'nv' : 'u'));
+        const stText = ev.s === 'p' ? 'PASS' : (ev.s === 'f' ? 'FAIL' : (ev.s === 'nv' ? 'NOT VERIFIED' : 'PENDING'));
 
         let evHtml = '';
         if (ev.note) {
           const srcPrefix = ev.source ? `<span style="font-weight:700; color:#334155; text-transform:uppercase; font-size:11px; margin-right:4px;">[${ev.source}]</span> ` : '';
-          evHtml = `<div class="pdf-item-evidence ${ev.s === 'p' ? 'pass' : 'fail'}"><strong>Evidence:</strong> ${srcPrefix}${ev.note}</div>`;
+          const evBoxClass = ev.s === 'p' ? 'pass' : (ev.s === 'f' ? 'fail' : 'nv');
+          evHtml = `<div class="pdf-item-evidence ${evBoxClass}"><strong>Evidence:</strong> ${srcPrefix}${ev.note}</div>`;
         }
         let exHtml = '';
         if (ev.exception) {
@@ -729,8 +764,10 @@ export default function PageAuditApp() {
         `;
       });
 
-      const catBadgeClass = groupFail > 0 ? 'fail' : 'pass';
-      const catBadgeText = groupFail > 0 ? `${groupFail} issue(s)` : `${groupPass}/${group.items.length} passed`;
+      const catBadgeClass = groupFail > 0 ? 'fail' : (groupNotVerified > 0 ? 'nv' : 'pass');
+      const catBadgeText = groupFail > 0
+        ? `${groupFail} issue(s)`
+        : (groupNotVerified > 0 ? `${groupNotVerified} unverified` : `${groupPass}/${group.items.length} passed`);
 
       categoriesHtml += `
         <div class="pdf-category-section">
@@ -766,6 +803,7 @@ export default function PageAuditApp() {
       <div class="pdf-summary-bar">
         <div class="pdf-summary-stat"><span class="num">${stats.total}</span><span class="lbl">Total Standards</span></div>
         <div class="pdf-summary-stat"><span class="num" style="color:#059669;">${stats.passed}</span><span class="lbl">Passed Checks</span></div>
+        <div class="pdf-summary-stat"><span class="num" style="color:#d97706;">${stats.notVerified}</span><span class="lbl">Not Verified</span></div>
         <div class="pdf-summary-stat"><span class="num" style="color:#dc2626;">${stats.failed}</span><span class="lbl">Issues Flagged</span></div>
         <div class="pdf-summary-stat"><span class="num" style="color:#64748b;">${stats.pending}</span><span class="lbl">Pending Action</span></div>
       </div>
@@ -1313,6 +1351,10 @@ export default function PageAuditApp() {
                       style={{ width: `${(stats.passed / stats.total) * 100}%` }}
                     ></div>
                     <div
+                      className="meter-seg meter-nv"
+                      style={{ width: `${(stats.notVerified / stats.total) * 100}%` }}
+                    ></div>
+                    <div
                       className="meter-seg meter-fail"
                       style={{ width: `${(stats.failed / stats.total) * 100}%` }}
                     ></div>
@@ -1320,7 +1362,7 @@ export default function PageAuditApp() {
                   <div className="progress-meta-text">
                     {stats.pending > 0
                       ? `${stats.pending} checks remaining`
-                      : `${stats.passed} passed • ${stats.failed} issues flagged`}
+                      : `${stats.passed} passed • ${stats.failed} failed • ${stats.notVerified} unverified`}
                   </div>
                 </div>
 
@@ -1344,6 +1386,12 @@ export default function PageAuditApp() {
                     <div className="stat-card stat-fail">
                       <span className="stat-card-label"><span className="stat-dot dot-fail"></span> Failed</span>
                       <span className="stat-card-value">{stats.failed}</span>
+                    </div>
+                  </div>
+                  <div className="stat-cards-duo" style={{ marginTop: '8px' }}>
+                    <div className="stat-card stat-nv" style={{ width: '100%' }}>
+                      <span className="stat-card-label"><span className="stat-dot dot-nv"></span> Not Verified</span>
+                      <span className="stat-card-value">{stats.notVerified}</span>
                     </div>
                   </div>
                 </div>
@@ -1382,7 +1430,7 @@ export default function PageAuditApp() {
               {/* Category Tabs */}
               <nav className="category-tabs-bar" role="tablist" aria-label="Audit Categories">
                 {AUDIT_DATA.map((cat, idx) => {
-                  const failCount = categoryFailCounts[idx];
+                  const counts = categoryCounts[idx];
                   return (
                     <button
                       key={cat.tab}
@@ -1391,11 +1439,13 @@ export default function PageAuditApp() {
                       onClick={() => setActiveCategoryIndex(idx)}
                     >
                       <span>{cat.tab}</span>
-                      {failCount > 0 ? (
-                        <span className="cat-tab-badge badge-fail">{failCount} fail</span>
-                      ) : (
+                      {counts.failed > 0 ? (
+                        <span className="cat-tab-badge badge-fail">{counts.failed} fail</span>
+                      ) : counts.notVerified > 0 ? (
+                        <span className="cat-tab-badge badge-nv">{counts.notVerified} unverified</span>
+                      ) : counts.passed === counts.total ? (
                         <span className="cat-tab-badge badge-clean">✓</span>
-                      )}
+                      ) : null}
                     </button>
                   );
                 })}
@@ -1572,9 +1622,11 @@ export default function PageAuditApp() {
                     <span className="cat-pane-step">CATEGORY 0{activeCategoryIndex + 1} OF 08</span>
                     <h2 className="cat-pane-title">{activeCategory.name}</h2>
                   </div>
-                  <span className={`group-tag ${categoryFailCounts[activeCategoryIndex] > 0 ? 'has-failed' : 'all-passed'}`}>
-                    {categoryFailCounts[activeCategoryIndex] > 0
-                      ? `${categoryFailCounts[activeCategoryIndex]} failed`
+                  <span className={`group-tag ${categoryCounts[activeCategoryIndex].failed > 0 ? 'has-failed' : categoryCounts[activeCategoryIndex].notVerified > 0 ? 'has-warn' : 'all-passed'}`}>
+                    {categoryCounts[activeCategoryIndex].failed > 0
+                      ? `${categoryCounts[activeCategoryIndex].failed} failed`
+                      : categoryCounts[activeCategoryIndex].notVerified > 0
+                      ? `${categoryCounts[activeCategoryIndex].notVerified} unverified`
                       : 'All passed'}
                   </span>
                 </div>
@@ -1585,7 +1637,8 @@ export default function PageAuditApp() {
                     const ev = evaluations[item.id] || { s: 'u', note: '', source: '', exception: '' };
                     const isPass = ev.s === 'p';
                     const isFail = ev.s === 'f';
-                    const itemStateClass = isPass ? 'state-p' : isFail ? 'state-f' : '';
+                    const isNotVerified = ev.s === 'nv';
+                    const itemStateClass = isPass ? 'state-p' : isFail ? 'state-f' : isNotVerified ? 'state-n state-nv' : '';
 
                     return (
                       <div key={item.id} className={`check-item ${itemStateClass}`}>
@@ -1603,8 +1656,8 @@ export default function PageAuditApp() {
                             )}
 
                             {ev.note && (
-                              <div className={`check-evidence-box visible ${isPass ? 'evidence-pass' : 'evidence-fail'}`}>
-                                <span className="evidence-icon">{isPass ? '✓' : '✕'}</span>
+                              <div className={`check-evidence-box visible ${isPass ? 'evidence-pass' : isFail ? 'evidence-fail' : 'evidence-nv'}`}>
+                                <span className="evidence-icon">{isPass ? '✓' : isFail ? '✕' : '⚠'}</span>
                                 {ev.source && (
                                   <span className="evidence-source-tag">{ev.source}</span>
                                 )}
@@ -1612,25 +1665,64 @@ export default function PageAuditApp() {
                               </div>
                             )}
 
-                            {/* Client Exception Note Input */}
-                            <div style={{ marginTop: '12px' }}>
-                              <input
-                                type="text"
-                                style={{
-                                  width: '100%',
-                                  fontSize: '13px',
-                                  padding: '8px 12px',
-                                  borderRadius: 'var(--radius-sm)',
-                                  border: '1px solid var(--border-subtle)',
-                                  background: 'var(--bg-subtle)',
-                                  color: 'var(--text-main)',
-                                  outline: 'none',
-                                  boxSizing: 'border-box'
-                                }}
-                                placeholder="Add client exception or custom QA note…"
-                                value={ev.exception || ''}
-                                onChange={(e) => setItemException(item.id, e.target.value)}
-                              />
+                            {/* Collapsible Client Exception Note */}
+                            <div className="exception-box">
+                              {!openNotes[item.id] && !ev.exception ? (
+                                <button
+                                  type="button"
+                                  className="exception-toggle-btn"
+                                  onClick={() => toggleNote(item.id)}
+                                >
+                                  + Add Exception Note
+                                </button>
+                              ) : !openNotes[item.id] && ev.exception ? (
+                                <button
+                                  type="button"
+                                  className="exception-toggle-btn has-note"
+                                  onClick={() => toggleNote(item.id)}
+                                  title="Click to edit exception note"
+                                >
+                                  ✓ Note: {ev.exception.length > 36 ? ev.exception.slice(0, 36) + '…' : ev.exception} (Edit)
+                                </button>
+                              ) : (
+                                <div className="exception-panel">
+                                  <div className="exception-panel-header">
+                                    <span className="exception-panel-label">
+                                      Client Exception / QA Note
+                                    </span>
+                                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                                      {ev.exception && (
+                                        <button
+                                          type="button"
+                                          className="exception-panel-close"
+                                          onClick={() => {
+                                            setItemException(item.id, '');
+                                            setOpenNotes(prev => ({ ...prev, [item.id]: false }));
+                                          }}
+                                          title="Delete this note"
+                                        >
+                                          Clear
+                                        </button>
+                                      )}
+                                      <button
+                                        type="button"
+                                        className="exception-panel-close"
+                                        onClick={() => toggleNote(item.id)}
+                                        title="Done editing"
+                                      >
+                                        {ev.exception ? 'Done' : '✕ Cancel'}
+                                      </button>
+                                    </div>
+                                  </div>
+                                  <textarea
+                                    className="exception-textarea"
+                                    placeholder="Explain why this deviation is accepted for this client, or record specific audit findings…"
+                                    value={ev.exception || ''}
+                                    onChange={(e) => setItemException(item.id, e.target.value)}
+                                    rows={2}
+                                  />
+                                </div>
+                              )}
                             </div>
                           </div>
 
@@ -1639,6 +1731,7 @@ export default function PageAuditApp() {
                               type="button"
                               className={`seg-btn btn-p ${isPass ? 'active' : ''}`}
                               onClick={() => setItemStatus(item.id, 'p')}
+                              title="Mark Pass (confirmed by evidence)"
                             >
                               Pass
                             </button>
@@ -1646,8 +1739,17 @@ export default function PageAuditApp() {
                               type="button"
                               className={`seg-btn btn-f ${isFail ? 'active' : ''}`}
                               onClick={() => setItemStatus(item.id, 'f')}
+                              title="Mark Fail (confirmed issue)"
                             >
                               Fail
+                            </button>
+                            <button
+                              type="button"
+                              className={`seg-btn btn-nv ${isNotVerified ? 'active' : ''}`}
+                              onClick={() => setItemStatus(item.id, 'nv')}
+                              title="Mark Not Verified (check incomplete or insufficient evidence)"
+                            >
+                              Not Verified
                             </button>
                           </div>
                         </div>
@@ -1927,6 +2029,9 @@ export default function PageAuditApp() {
                         <span className="modal-stat-pill pill-fail">
                           {synthesizedAudit?.failedCount ?? stats.failed} Issues
                         </span>
+                        <span className="modal-stat-pill pill-nv">
+                          {synthesizedAudit?.notVerifiedCount ?? stats.notVerified} Not Verified
+                        </span>
                         {pageSpeedData && (
                           <span
                             className="modal-stat-pill"
@@ -1955,25 +2060,40 @@ export default function PageAuditApp() {
 
                   {/* Auto-fill banner note */}
                   <div className="rn-autofill-note" style={{ margin: 0 }}>
-                    ✓ All 23 checklist items evaluated across 8 categories ({stats.passed} passed, {stats.failed} flagged) &mdash; review findings below
+                    ✓ All 23 checklist items evaluated across 8 categories ({stats.passed} passed, {stats.failed} failed, {stats.notVerified} not verified) &mdash; review findings below
                   </div>
 
                   {/* Issues Detected List */}
                   <div className="modal-issues-wrapper">
-                    <div className="rn-issues-title">Detected Issues &amp; Recommendations</div>
-                    <div style={{ maxHeight: '200px', overflowY: 'auto' }}>
+                    <div className="rn-issues-title">Confirmed Issues &amp; Defects</div>
+                    <div style={{ maxHeight: '160px', overflowY: 'auto' }}>
                       {synthesizedAudit && synthesizedAudit.issues && synthesizedAudit.issues.length > 0 ? (
                         synthesizedAudit.issues.map((iss, iIdx) => (
-                          <div key={iIdx} style={{ fontSize: '13px', lineHeight: '1.5', padding: '6px 0', borderBottom: '1px solid var(--border-subtle)' }}>
-                            • {iss}
+                          <div key={iIdx} style={{ fontSize: '13px', lineHeight: '1.5', padding: '6px 0', borderBottom: '1px solid var(--border-subtle)', color: 'var(--fail-ink)' }}>
+                            ✕ {iss}
                           </div>
                         ))
                       ) : (
-                        <div style={{ padding: '10px 0', color: 'var(--pass-ink)' }}>
-                          ✓ No critical issues flagged. All checked criteria conform to standards.
+                        <div style={{ padding: '8px 0', color: 'var(--pass-ink)' }}>
+                          ✓ No confirmed defects detected on this page.
                         </div>
                       )}
                     </div>
+
+                    {synthesizedAudit && synthesizedAudit.unverified && synthesizedAudit.unverified.length > 0 && (
+                      <div style={{ marginTop: '12px', borderTop: '1px dashed var(--border-subtle)', paddingTop: '10px' }}>
+                        <div className="rn-issues-title" style={{ color: 'var(--warn-ink)', fontSize: '13px' }}>
+                          ⚠ Not Verified ({synthesizedAudit.unverified.length}) &mdash; Incomplete / Missing Telemetry
+                        </div>
+                        <div style={{ maxHeight: '130px', overflowY: 'auto' }}>
+                          {synthesizedAudit.unverified.map((uv, uIdx) => (
+                            <div key={uIdx} style={{ fontSize: '12.5px', lineHeight: '1.45', padding: '5px 0', borderBottom: '1px solid var(--border-subtle)', color: 'var(--warn-ink)' }}>
+                              ⚠ {uv}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
 

@@ -5057,3 +5057,220 @@
         color: #475569 !important;
       }
     }
+
+
+    /* ── Collapsible Exception Note Controls ──────────────────────────────── */
+    .exception-box {
+      margin-top: 10px;
+    }
+
+    .exception-toggle-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-family: var(--font-mono);
+      font-size: 12.5px;
+      font-weight: 600;
+      color: var(--text-muted);
+      background: var(--bg-subtle);
+      border: 1.5px dashed var(--border-medium);
+      border-radius: var(--radius-sm);
+      padding: 6px 14px;
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+
+    .exception-toggle-btn:hover {
+      background: var(--bg-muted);
+      border-color: var(--accent-base);
+      color: var(--accent-base);
+    }
+
+    .exception-toggle-btn.has-note {
+      border-style: solid;
+      border-color: var(--accent-border);
+      background: var(--accent-bg);
+      color: var(--accent-base);
+    }
+
+    .exception-panel {
+      margin-top: 8px;
+      padding: 12px 14px;
+      background: var(--bg-subtle);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-sm);
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .exception-panel-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .exception-panel-label {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-dim);
+    }
+
+    .exception-panel-close {
+      background: transparent;
+      border: none;
+      font-size: 11.5px;
+      font-weight: 600;
+      color: var(--text-dim);
+      cursor: pointer;
+      padding: 2px 6px;
+      border-radius: 4px;
+    }
+
+    .exception-panel-close:hover {
+      color: var(--fail-solid);
+    }
+
+    .exception-textarea {
+      width: 100%;
+      box-sizing: border-box;
+      font-family: var(--font-body);
+      font-size: 13px;
+      line-height: 1.5;
+      padding: 8px 10px;
+      border-radius: var(--radius-xs);
+      border: 1px solid var(--border-subtle);
+      background: var(--bg-surface);
+      color: var(--text-main);
+      resize: vertical;
+      min-height: 56px;
+      outline: none;
+      transition: border-color 0.15s ease;
+    }
+
+    .exception-textarea:focus {
+      border-color: var(--accent-base);
+    }
+
+    [data-theme="dark"] .exception-toggle-btn {
+      border-color: #334155;
+      color: #94a3b8;
+      background: rgba(255, 255, 255, 0.03);
+    }
+
+    [data-theme="dark"] .exception-toggle-btn:hover {
+      background: rgba(56, 189, 248, 0.1);
+      border-color: #38bdf8;
+      color: #38bdf8;
+    }
+
+    [data-theme="dark"] .exception-toggle-btn.has-note {
+      border-color: rgba(56, 189, 248, 0.3);
+      background: rgba(56, 189, 248, 0.08);
+      color: #38bdf8;
+    }
+
+    [data-theme="dark"] .exception-panel {
+      background: #101620;
+      border-color: #1e293b;
+    }
+
+    [data-theme="dark"] .exception-textarea {
+      background: #17202e;
+      border-color: #27354a;
+      color: #e2e8f0;
+    }
+
+
+    /* ── Mandatory Not Verified Status Styling ───────────────────────────── */
+    .seg-btn.btn-nv {
+      font-size: 12.5px;
+      padding: 8px 12px;
+      min-width: 64px;
+    }
+
+    .seg-btn.active.btn-nv {
+      background: var(--warn-solid);
+      color: #ffffff;
+      font-weight: 700;
+      box-shadow: 0 1px 3px rgba(217, 119, 6, 0.3);
+    }
+
+    .check-evidence-box.evidence-nv {
+      background: var(--warn-bg);
+      border: 1px solid var(--warn-border);
+      color: var(--warn-ink);
+    }
+
+    .evidence-nv .evidence-source-tag {
+      background: rgba(217, 119, 6, 0.12);
+      border-color: rgba(217, 119, 6, 0.25);
+      color: var(--warn-ink);
+    }
+
+    .stat-card.stat-nv {
+      background: var(--warn-bg);
+      border-color: var(--warn-border);
+    }
+
+    .stat-card.stat-nv .stat-card-value {
+      color: var(--warn-solid);
+    }
+
+    .stat-dot.dot-nv {
+      background: var(--warn-solid);
+    }
+
+    .meter-seg.meter-nv {
+      background: var(--warn-solid);
+    }
+
+    .cat-tab .cat-tab-badge.badge-nv {
+      background: var(--warn-bg);
+      color: var(--warn-ink);
+      border-color: var(--warn-border);
+    }
+
+    .cat-tab.active .cat-tab-badge.badge-nv {
+      background: var(--warn-solid);
+      color: #ffffff;
+      border-color: var(--warn-solid);
+    }
+
+    .group-tag.has-warn {
+      background: var(--warn-bg);
+      border-color: var(--warn-border);
+      color: var(--warn-ink);
+    }
+
+    .modal-stat-pill.pill-nv {
+      background: var(--warn-bg);
+      color: var(--warn-ink);
+      border-color: var(--warn-border);
+    }
+
+    .pdf-status-pill.nv {
+      background: #fffbeb !important;
+      color: #92400e !important;
+      border: 1px solid #f59e0b !important;
+    }
+
+    .pdf-item-evidence.nv {
+      border-left: 3px solid #f59e0b !important;
+      background: #fffbeb !important;
+      color: #92400e !important;
+    }
+
+    [data-theme="dark"] .seg-btn.active.btn-nv {
+      background: #d97706;
+      color: #ffffff;
+    }
+
+    [data-theme="dark"] .check-evidence-box.evidence-nv {
+      background: rgba(217, 119, 6, 0.12);
+      border-color: rgba(217, 119, 6, 0.35);
+      color: #fbbf24;
+    }
