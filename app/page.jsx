@@ -639,6 +639,17 @@ export default function PageAuditApp() {
     }
   };
 
+  // ── HTML Escaper for Safe PDF Export ─────────────────────────────────────
+  function escapeHtml(str) {
+    if (str === null || str === undefined) return '';
+    return String(str)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }
+
   // ── PDF Export ──────────────────────────────────────────────────────────
   const handleExportPdf = () => {
     setIsGeneratingPdf(true);
@@ -653,9 +664,9 @@ export default function PageAuditApp() {
     let psiHtml = '';
     if (pageSpeedData && typeof pageSpeedData.score === 'number') {
       psiHtml = `
-        <div style="margin-bottom:14px; padding:12px 16px; background:#eff6ff; border:1px solid #bfdbfe; border-radius:6px; font-size:12.5px; line-height:1.5;">
-          <div style="font-weight:700; color:#1e40af; margin-bottom:4px;">Google PageSpeed Mobile Telemetry: Score ${pageSpeedData.score}/100</div>
-          <div><strong>LCP:</strong> ${pageSpeedData.lcp} &bull; <strong>CLS:</strong> ${pageSpeedData.cls} &bull; <strong>TBT:</strong> ${pageSpeedData.tbt} &bull; <strong>Speed Index:</strong> ${pageSpeedData.si}</div>
+        <div class="pdf-psi-box" style="margin-bottom:14px; padding:12px 16px; background:#eff6ff; border:1px solid #bfdbfe; border-radius:6px; font-size:12px; line-height:1.5; page-break-inside:avoid; break-inside:avoid;">
+          <div style="font-weight:700; color:#1e40af; margin-bottom:4px;">Google PageSpeed Mobile Telemetry: Score ${escapeHtml(pageSpeedData.score)}/100</div>
+          <div><strong>LCP:</strong> ${escapeHtml(pageSpeedData.lcp)} &bull; <strong>CLS:</strong> ${escapeHtml(pageSpeedData.cls)} &bull; <strong>TBT:</strong> ${escapeHtml(pageSpeedData.tbt)} &bull; <strong>Speed Index:</strong> ${escapeHtml(pageSpeedData.si)}</div>
         </div>
       `;
     }
@@ -678,22 +689,22 @@ export default function PageAuditApp() {
 
         let evHtml = '';
         if (ev.note) {
-          const srcPrefix = ev.source ? `<span style="font-weight:700; color:#334155; text-transform:uppercase; font-size:11px; margin-right:4px;">[${ev.source}]</span> ` : '';
+          const srcPrefix = ev.source ? `<span style="font-weight:700; color:#334155; text-transform:uppercase; font-size:10.5px; margin-right:4px;">[${escapeHtml(ev.source)}]</span> ` : '';
           const evBoxClass = ev.s === 'p' ? 'pass' : (ev.s === 'f' ? 'fail' : 'nv');
-          evHtml = `<div class="pdf-item-evidence ${evBoxClass}"><strong>Evidence:</strong> ${srcPrefix}${ev.note}</div>`;
+          evHtml = `<div class="pdf-item-evidence ${evBoxClass}"><strong>Evidence:</strong> ${srcPrefix}${escapeHtml(ev.note)}</div>`;
         }
         let exHtml = '';
         if (ev.exception) {
-          exHtml = `<div class="pdf-item-evidence" style="border-left-color:#3b82f6; background:#eff6ff; color:#1e40af;"><strong>Client Exception:</strong> ${ev.exception}</div>`;
+          exHtml = `<div class="pdf-item-evidence" style="border-left-color:#3b82f6; background:#eff6ff; color:#1e40af;"><strong>Client Exception:</strong> ${escapeHtml(ev.exception)}</div>`;
         }
 
         itemsHtml += `
           <div class="pdf-item-row">
             <div class="pdf-item-top">
-              <span class="pdf-item-title">${iIdx + 1}. ${it.title}</span>
+              <span class="pdf-item-title">${iIdx + 1}. ${escapeHtml(it.title)}</span>
               <span class="pdf-status-pill ${stClass}">${stText}</span>
             </div>
-            <div class="pdf-item-rule">${it.rule}</div>
+            <div class="pdf-item-rule">${escapeHtml(it.rule)}</div>
             ${evHtml}
             ${exHtml}
           </div>
@@ -708,8 +719,8 @@ export default function PageAuditApp() {
       categoriesHtml += `
         <div class="pdf-category-section">
           <div class="pdf-cat-header">
-            <span class="pdf-cat-title">Category 0${gi + 1} &bull; ${group.name}</span>
-            <span class="pdf-cat-badge ${catBadgeClass}">${catBadgeText}</span>
+            <span class="pdf-cat-title">Category 0${gi + 1} &bull; ${escapeHtml(group.name)}</span>
+            <span class="pdf-cat-badge ${catBadgeClass}">${escapeHtml(catBadgeText)}</span>
           </div>
           ${itemsHtml}
         </div>
@@ -719,21 +730,21 @@ export default function PageAuditApp() {
     const fullDossierHtml = `
       <div class="pdf-header-block">
         <div class="pdf-title-group">
-          <h1>${safeTitle}</h1>
+          <h1>${escapeHtml(safeTitle)}</h1>
         </div>
         <div class="pdf-badge-group">
-          <div class="pdf-score-badge">Score: ${scoreVal}/100 (${gradeVal})</div>
-          <div class="pdf-verdict-tag ${isPass ? 'pass' : 'fail'}">${verdictInfo.badge}</div>
+          <div class="pdf-score-badge">Score: ${escapeHtml(scoreVal)}/100 (${escapeHtml(gradeVal)})</div>
+          <div class="pdf-verdict-tag ${isPass ? 'pass' : 'fail'}">${escapeHtml(verdictInfo.badge)}</div>
         </div>
       </div>
       <table class="pdf-meta-table">
         <tr>
-          <td class="k">Project Name</td><td class="v">${safeProject}</td>
-          <td class="k">Auditor / Lead</td><td class="v">${safeAuditor}</td>
+          <td class="k">Project Name</td><td class="v">${escapeHtml(safeProject)}</td>
+          <td class="k">Auditor / Lead</td><td class="v">${escapeHtml(safeAuditor)}</td>
         </tr>
         <tr>
-          <td class="k">Target URL</td><td class="v" style="font-family:monospace;">${targetUrl}</td>
-          <td class="k">Audit Timestamp</td><td class="v">${dateStr}</td>
+          <td class="k">Target URL</td><td class="v" style="font-family:monospace; word-break:break-all;">${escapeHtml(targetUrl)}</td>
+          <td class="k">Audit Timestamp</td><td class="v">${escapeHtml(dateStr)}</td>
         </tr>
       </table>
       <div class="pdf-summary-bar">
@@ -745,7 +756,7 @@ export default function PageAuditApp() {
       </div>
       ${psiHtml}
       <div style="margin-top:14px;">${categoriesHtml}</div>
-      <div style="margin-top:16px; padding-top:10px; border-top:1px solid #cbd5e1; font-size:12px; color:#64748b; display:flex; justify-content:space-between;">
+      <div style="margin-top:16px; padding-top:10px; border-top:1px solid #cbd5e1; font-size:11px; color:#64748b; display:flex; justify-content:space-between; page-break-inside:avoid; break-inside:avoid;">
         <span>Generated via Antigravity Page Audit Checklist</span>
         <span>Verified Single-Page Pre-Launch Report</span>
       </div>
@@ -753,36 +764,57 @@ export default function PageAuditApp() {
 
     const tempWrapper = document.createElement('div');
     tempWrapper.className = 'pdf-export-wrapper';
-    tempWrapper.style.width = '100%';
-    tempWrapper.style.maxWidth = '100%';
-    tempWrapper.style.boxSizing = 'border-box';
-    tempWrapper.style.padding = '18px';
+    tempWrapper.style.position = 'fixed';
+    tempWrapper.style.left = '-9999px';
+    tempWrapper.style.top = '0';
+    tempWrapper.style.width = '794px';
+    tempWrapper.style.zIndex = '-9999';
+    tempWrapper.style.padding = '20px';
     tempWrapper.style.background = '#ffffff';
     tempWrapper.style.color = '#0f172a';
+    tempWrapper.style.boxSizing = 'border-box';
     tempWrapper.innerHTML = fullDossierHtml;
+    document.body.appendChild(tempWrapper);
 
     const safeFilename = `Audit-Report-${safeProject.replace(/[^a-zA-Z0-9_\-]/g, '_').substring(0, 32)}.pdf`;
 
+    const cleanup = () => {
+      if (tempWrapper.parentNode) {
+        tempWrapper.parentNode.removeChild(tempWrapper);
+      }
+      setIsGeneratingPdf(false);
+    };
+
     if (typeof window !== 'undefined' && window.html2pdf) {
       const opt = {
-        margin: [8, 8, 8, 8],
+        margin: [10, 10, 10, 10],
         filename: safeFilename,
         image: { type: 'jpeg', quality: 0.98 },
-        html2canvas: { scale: 2, useCORS: true, letterRendering: true, logging: false, scrollY: 0 },
+        html2canvas: {
+          scale: 2,
+          useCORS: true,
+          letterRendering: true,
+          logging: false,
+          scrollY: 0,
+          windowWidth: 794
+        },
         jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
-        pagebreak: { mode: ['avoid-all', 'css', 'legacy'] }
+        pagebreak: {
+          mode: ['css', 'legacy'],
+          avoid: ['.pdf-item-row', '.pdf-cat-header', '.pdf-meta-table', '.pdf-summary-bar', '.pdf-header-block', '.pdf-psi-box']
+        }
       };
 
       window.html2pdf().set(opt).from(tempWrapper).save().then(() => {
-        setIsGeneratingPdf(false);
+        cleanup();
         showToast('✓ PDF Report downloaded successfully!');
       }).catch(err => {
         console.error('PDF error, using print fallback:', err);
-        setIsGeneratingPdf(false);
+        cleanup();
         window.print();
       });
     } else {
-      setIsGeneratingPdf(false);
+      cleanup();
       window.print();
     }
   };
@@ -1201,7 +1233,7 @@ export default function PageAuditApp() {
                 <div className="ribbon-project-title">
                   <span>Project: {projectName || 'Pre-Launch Audit'}</span>
                   {synthesizedAudit && (
-                    <span className="rn-grade-badge" style={{ display: 'inline-block', marginLeft: '8px' }}>
+                    <span className={`rn-grade-badge rn-grade-${String(synthesizedAudit.grade || 'F').replace(/[^a-zA-Z]/g, '')}`} style={{ display: 'inline-block', marginLeft: '8px' }}>
                       {synthesizedAudit.grade}
                     </span>
                   )}
@@ -1953,9 +1985,15 @@ export default function PageAuditApp() {
                     </div>
                     <div className="modal-score-info">
                       <div className="modal-score-headline">
-                        <span className="modal-grade-tag">
-                          {synthesizedAudit?.grade ?? (stats.failed === 0 ? 'A' : 'B')}
-                        </span>
+                        {(() => {
+                          const gVal = synthesizedAudit?.grade ?? (stats.failed === 0 ? 'A' : (stats.failed >= 5 ? 'F' : (stats.failed >= 2 ? 'C' : 'B')));
+                          const gClass = String(gVal).replace(/[^a-zA-Z]/g, '');
+                          return (
+                            <span className={`modal-grade-tag rn-grade-badge rn-grade-${gClass}`}>
+                              {gVal}
+                            </span>
+                          );
+                        })()}
                         <span className="modal-score-caption">SEO &amp; Quality Score</span>
                       </div>
                       <div className="modal-stats-pills">

@@ -2432,18 +2432,62 @@
 
     .modal-grade-tag {
       font-family: var(--font-mono);
-      font-size: 12px;
-      font-weight: 700;
-      padding: 2px 8px;
+      font-size: 12.5px;
+      font-weight: 800;
+      padding: 2.5px 9px;
       border-radius: var(--radius-xs);
       letter-spacing: 0.04em;
-      border: 1px solid;
+      border: 1px solid transparent;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      line-height: 1.2;
+    }
+
+    .modal-grade-tag.rn-grade-A,
+    .modal-grade-tag.rn-grade-A-,
+    .modal-grade-tag.grade-A,
+    .modal-grade-tag.grade-A- {
+      background: var(--pass-bg);
+      color: var(--pass-ink);
+      border-color: var(--pass-border);
+    }
+
+    .modal-grade-tag.rn-grade-B,
+    .modal-grade-tag.grade-B {
+      background: #ecfdf5;
+      color: #065f46;
+      border-color: #6ee7b7;
+    }
+
+    .modal-grade-tag.rn-grade-C,
+    .modal-grade-tag.grade-C {
+      background: var(--warn-bg);
+      color: var(--warn-ink);
+      border-color: var(--warn-border);
+    }
+
+    .modal-grade-tag.rn-grade-D,
+    .modal-grade-tag.rn-grade-F,
+    .modal-grade-tag.grade-D,
+    .modal-grade-tag.grade-F {
+      background: var(--fail-bg);
+      color: var(--fail-ink);
+      border-color: var(--fail-border);
+    }
+
+    .modal-grade-tag.rn-grade-Pending,
+    .modal-grade-tag.grade-Pending {
+      background: #f1f5f9;
+      color: #475569;
+      border-color: #cbd5e1;
     }
 
     .modal-score-caption {
-      font-size: 13.5px;
-      font-weight: 600;
+      font-size: 14px;
+      font-weight: 700;
       color: var(--text-main);
+      letter-spacing: -0.01em;
     }
 
     .modal-stats-pills {
@@ -2615,7 +2659,8 @@
       border: 1px solid;
     }
 
-    .rn-grade-A {
+    .rn-grade-A,
+    .rn-grade-A- {
       background: var(--pass-bg);
       color: var(--pass-ink);
       border-color: var(--pass-border);
@@ -5273,4 +5318,51 @@
       background: rgba(217, 119, 6, 0.12);
       border-color: rgba(217, 119, 6, 0.35);
       color: #fbbf24;
+    }
+
+
+    /* ── Enhanced Multi-Page PDF Export Styles ───────────────────────────── */
+    .pdf-category-section {
+      page-break-inside: auto !important;
+      break-inside: auto !important;
+      margin-bottom: 16px !important;
+      border: 1px solid #cbd5e1 !important;
+      border-radius: 6px !important;
+      overflow: visible !important;
+    }
+
+    .pdf-cat-header {
+      page-break-after: avoid !important;
+      break-after: avoid !important;
+    }
+
+    .pdf-item-row {
+      page-break-inside: avoid !important;
+      break-inside: avoid !important;
+      word-break: break-word !important;
+    }
+
+    .pdf-header-block,
+    .pdf-meta-table,
+    .pdf-summary-bar {
+      page-break-inside: avoid !important;
+      break-inside: avoid !important;
+    }
+
+    .pdf-item-evidence {
+      font-family: var(--font-mono) !important;
+      font-size: 11.5px !important;
+      padding: 6px 10px !important;
+      border-radius: 4px !important;
+      word-break: break-word !important;
+      line-height: 1.45 !important;
+    }
+
+    .pdf-item-evidence * {
+      font-size: inherit !important;
+      font-weight: inherit !important;
+      color: inherit !important;
+      margin: 0 !important;
+      padding: 0 !important;
+      display: inline !important;
     }
