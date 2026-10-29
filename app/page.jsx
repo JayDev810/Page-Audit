@@ -1428,25 +1428,6 @@ export default function PageAuditApp() {
                 </div>
               )}
 
-              {/* Category Header */}
-              <div className="category-header-wrap" style={{ marginTop: '16px', marginBottom: '16px' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <div>
-                    <span className="cat-index-label" style={{ fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-dim)' }}>
-                      CATEGORY 0{activeCategoryIndex + 1} OF 08
-                    </span>
-                    <h2 style={{ fontSize: '20px', fontWeight: '700', margin: '4px 0 0 0' }}>
-                      {activeCategory.name}
-                    </h2>
-                  </div>
-                  <span className={`cat-fail-badge ${categoryFailCounts[activeCategoryIndex] > 0 ? 'badge-fail' : 'badge-pass'}`} style={{ padding: '4px 10px', borderRadius: '12px', fontSize: '12px', fontWeight: '700' }}>
-                    {categoryFailCounts[activeCategoryIndex] > 0
-                      ? `${categoryFailCounts[activeCategoryIndex]} failed`
-                      : 'All passed'}
-                  </span>
-                </div>
-              </div>
-
               {/* Special Category 8: PageSpeed Interactive Dashboard */}
               {activeCategoryIndex === 7 && (
                 <div className="psi-dashboard-card" style={{ marginBottom: '20px' }}>
@@ -1583,123 +1564,146 @@ export default function PageAuditApp() {
                 </div>
               )}
 
-              {/* Checklist items list */}
-              <div className="audit-list">
-                {activeCategory.items.map((item, itIdx) => {
-                  const ev = evaluations[item.id] || { s: 'u', note: '', source: '', exception: '' };
-                  const isPass = ev.s === 'p';
-                  const isFail = ev.s === 'f';
-
-                  return (
-                    <div
-                      key={item.id}
-                      className={`audit-item-card ${isPass ? 'status-pass' : isFail ? 'status-fail' : ''}`}
-                    >
-                      <div className="audit-item-top">
-                        <div className="audit-item-meta">
-                          <span className="audit-item-index">
-                            #{String(itIdx + 1).padStart(2, '0')}
-                          </span>
-                          <h3 className="audit-item-title">{item.title}</h3>
-                        </div>
-                        <div className="audit-item-actions">
-                          <button
-                            type="button"
-                            className={`btn-toggle-status btn-pass ${isPass ? 'active' : ''}`}
-                            onClick={() => setItemStatus(item.id, 'p')}
-                          >
-                            Pass
-                          </button>
-                          <button
-                            type="button"
-                            className={`btn-toggle-status btn-fail ${isFail ? 'active' : ''}`}
-                            onClick={() => setItemStatus(item.id, 'f')}
-                          >
-                            Fail
-                          </button>
-                        </div>
-                      </div>
-
-                      <div className="audit-item-rule">{item.rule}</div>
-
-                      {/* Evidence Container */}
-                      {ev.note && (
-                        <div className={`audit-item-evidence ${isPass ? 'evidence-pass' : 'evidence-fail'}`}>
-                          <div className="evidence-header">
-                            <span className="evidence-icon">{isPass ? '✓' : '✕'}</span>
-                            {ev.source && (
-                              <span className="evidence-source-tag">
-                                {ev.source}
-                              </span>
-                            )}
-                          </div>
-                          <div className="evidence-text">{ev.note}</div>
-                        </div>
-                      )}
-
-                      {/* User Notes / Exception Input */}
-                      <div className="audit-item-exception-wrap">
-                        <input
-                          type="text"
-                          className="audit-item-exception-input"
-                          placeholder="Add client exception or custom note…"
-                          value={ev.exception || ''}
-                          onChange={(e) => setItemException(item.id, e.target.value)}
-                        />
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-
-              {/* Bottom Category Pagination */}
-              <div className="category-pagination-row" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '24px', padding: '16px 0', borderTop: '1px solid var(--border-subtle)' }}>
-                <button
-                  type="button"
-                  className="btn-pagination-nav"
-                  disabled={activeCategoryIndex === 0}
-                  onClick={() => {
-                    setActiveCategoryIndex(prev => Math.max(0, prev - 1));
-                    window.scrollTo({ top: 0, behavior: 'smooth' });
-                  }}
-                >
-                  &larr; Previous Category
-                </button>
-
-                <div className="pagination-dots" style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
-                  <span style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-dim)', marginRight: '8px' }}>
-                    {activeCategoryIndex + 1} OF 8
+              {/* Category Panel & Checklist Items */}
+              <div className="group-panel">
+                {/* 1. Category Pane Header */}
+                <div className="cat-pane-header">
+                  <div className="cat-pane-meta">
+                    <span className="cat-pane-step">CATEGORY 0{activeCategoryIndex + 1} OF 08</span>
+                    <h2 className="cat-pane-title">{activeCategory.name}</h2>
+                  </div>
+                  <span className={`group-tag ${categoryFailCounts[activeCategoryIndex] > 0 ? 'has-failed' : 'all-passed'}`}>
+                    {categoryFailCounts[activeCategoryIndex] > 0
+                      ? `${categoryFailCounts[activeCategoryIndex]} failed`
+                      : 'All passed'}
                   </span>
-                  {AUDIT_DATA.map((_, dotIdx) => (
-                    <button
-                      key={dotIdx}
-                      className={`pagination-dot ${dotIdx === activeCategoryIndex ? 'active' : ''}`}
-                      onClick={() => setActiveCategoryIndex(dotIdx)}
-                      aria-label={`Jump to category ${dotIdx + 1}`}
-                      style={{
-                        width: '8px',
-                        height: '8px',
-                        borderRadius: '50%',
-                        border: 'none',
-                        background: dotIdx === activeCategoryIndex ? 'var(--fail-solid)' : 'var(--border-medium)',
-                        cursor: 'pointer',
-                        padding: 0
-                      }}
-                    />
-                  ))}
                 </div>
 
-                <button
-                  type="button"
-                  className="btn-pagination-nav"
-                  disabled={activeCategoryIndex === 7}
-                  onClick={() => {
-                    setActiveCategoryIndex(prev => Math.min(7, prev + 1));
-                    window.scrollTo({ top: 0, behavior: 'smooth' });
-                  }}
-                >
-                  Next: {AUDIT_DATA[Math.min(7, activeCategoryIndex + 1)].tab} &rarr;
-                </button>
+                {/* 2. Checks Container */}
+                <div className="checks-list">
+                  {activeCategory.items.map((item, itIdx) => {
+                    const ev = evaluations[item.id] || { s: 'u', note: '', source: '', exception: '' };
+                    const isPass = ev.s === 'p';
+                    const isFail = ev.s === 'f';
+                    const itemStateClass = isPass ? 'state-p' : isFail ? 'state-f' : '';
+
+                    return (
+                      <div key={item.id} className={`check-item ${itemStateClass}`}>
+                        <div className="check-header-row">
+                          <div className="check-info">
+                            <div className="check-index-title">
+                              <span className="check-num">#{String(itIdx + 1).padStart(2, '0')}</span>
+                              <span className="check-title">{item.title}</span>
+                            </div>
+                            <div className="check-rule">{item.rule}</div>
+                            {item.how && (
+                              <div className="check-how">
+                                <span>Verify:</span> <code>{item.how}</code>
+                              </div>
+                            )}
+
+                            {ev.note && (
+                              <div className={`check-evidence-box visible ${isPass ? 'evidence-pass' : 'evidence-fail'}`}>
+                                <span className="evidence-icon">{isPass ? '✓' : '✕'}</span>
+                                {ev.source && (
+                                  <span className="evidence-source-tag">{ev.source}</span>
+                                )}
+                                <span className="evidence-text">{ev.note}</span>
+                              </div>
+                            )}
+
+                            {/* Client Exception Note Input */}
+                            <div style={{ marginTop: '12px' }}>
+                              <input
+                                type="text"
+                                style={{
+                                  width: '100%',
+                                  fontSize: '13px',
+                                  padding: '8px 12px',
+                                  borderRadius: 'var(--radius-sm)',
+                                  border: '1px solid var(--border-subtle)',
+                                  background: 'var(--bg-subtle)',
+                                  color: 'var(--text-main)',
+                                  outline: 'none',
+                                  boxSizing: 'border-box'
+                                }}
+                                placeholder="Add client exception or custom QA note…"
+                                value={ev.exception || ''}
+                                onChange={(e) => setItemException(item.id, e.target.value)}
+                              />
+                            </div>
+                          </div>
+
+                          <div className="segmented-ctrl">
+                            <button
+                              type="button"
+                              className={`seg-btn btn-p ${isPass ? 'active' : ''}`}
+                              onClick={() => setItemStatus(item.id, 'p')}
+                            >
+                              Pass
+                            </button>
+                            <button
+                              type="button"
+                              className={`seg-btn btn-f ${isFail ? 'active' : ''}`}
+                              onClick={() => setItemStatus(item.id, 'f')}
+                            >
+                              Fail
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* 3. Category Stepper Footer */}
+                <div className="cat-stepper">
+                  <button
+                    type="button"
+                    className="stepper-btn prev"
+                    disabled={activeCategoryIndex === 0}
+                    onClick={() => {
+                      setActiveCategoryIndex(prev => Math.max(0, prev - 1));
+                      window.scrollTo({ top: 0, behavior: 'smooth' });
+                    }}
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                      <line x1="19" y1="12" x2="5" y2="12" />
+                      <polyline points="12 19 5 12 12 5" />
+                    </svg>
+                    <span>Previous Category</span>
+                  </button>
+
+                  <div className="stepper-center">
+                    <div className="stepper-count">{activeCategoryIndex + 1} of 8</div>
+                    <div className="stepper-dots">
+                      {AUDIT_DATA.map((_, dotIdx) => (
+                        <span
+                          key={dotIdx}
+                          className={`stepper-dot ${dotIdx === activeCategoryIndex ? 'active' : ''}`}
+                          onClick={() => setActiveCategoryIndex(dotIdx)}
+                          title={`Go to Category ${dotIdx + 1}`}
+                        />
+                      ))}
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    className="stepper-btn next"
+                    disabled={activeCategoryIndex === 7}
+                    onClick={() => {
+                      setActiveCategoryIndex(prev => Math.min(7, prev + 1));
+                      window.scrollTo({ top: 0, behavior: 'smooth' });
+                    }}
+                  >
+                    <span>Next: {AUDIT_DATA[Math.min(7, activeCategoryIndex + 1)].tab}</span>
+                    <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                      <line x1="5" y1="12" x2="19" y2="12" />
+                      <polyline points="12 5 19 12 12 19" />
+                    </svg>
+                  </button>
+                </div>
               </div>
 
               <footer className="ledger-footer" style={{ marginTop: '20px' }}>
